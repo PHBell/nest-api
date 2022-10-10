@@ -1,17 +1,20 @@
 import {Injectable, NotFoundException, UnprocessableEntityException} from '@nestjs/common';
 import {UsersModel} from "./users.interface";
 import {randomBytes} from "crypto";
+import {User} from "./users.entity";
 
 @Injectable()
 export class UsersService {
     private users: Array<UsersModel> = [];
 
-    public findAll() : Array<UsersModel>{
-        return this.users;
+    public findAll() : Promise<User[]>{
+        return User.find();
     }
 
-    public findOne(id : string) : UsersModel {
-        const user : UsersModel = this.users.find(user => user.id === id);
+    public findOne(id : string) : Promise<User> {
+        const user : Promise<User> = User.findOneBy({
+            id: id
+        })
 
         if (!user){
             throw new NotFoundException('User not found');
@@ -20,7 +23,7 @@ export class UsersService {
         return user;
     }
 
-    public create(user: UsersModel) : UsersModel {
+    public async create(user: User) : Promise<User>  {
         //check if the user already exists.
         const userExists: boolean = this.users.some((item) => item.email == user.email)
         if (userExists){
@@ -28,52 +31,34 @@ export class UsersService {
         }
 
         const id: string = randomBytes(20).toString('hex');
-        const created_at = new Date();
-        const updated_at = new Date();
+        const newUser = new User();
+        newUser.email = user.email;
+        newUser.password = user.password;
+        await newUser.save();
 
-        const newUser: UsersModel = {
-            ...user,
-            id,
-            created_at,
-            updated_at
-        };
-
-        this.users.push(newUser);
         return  newUser;
     }
 
-    public delete(id: string) : void {
-        const index: number = this.users.findIndex(user => user.id === id);
+    public async delete(id: string) : Promise<string> {
+        const user : User = await User.findOneBy({
+            id: id
+        });
 
-        // if -1 is returned it means no user with this id was found.
-        if (index === -1){
-            throw new NotFoundException("User not found");
+        if (!user){
+            throw new NotFoundException('User not found');
         }
 
-        this.users.splice(index, 1);
+        await user.remove();
+        return "User deleted"
     }
 
-    public update(id: string, user: UsersModel) : UsersModel {
-        const index: number = this.users.findIndex(user => user.id === id);
+    public async update(id: string, data: UsersModel) : Promise<User> {
+        const user : User = await User.findOneBy({
+            id: id
+        });
 
-        if (index === -1){
-            throw new NotFoundException("User not found");
-        }
-
-        const emailExists: boolean = this.users.some((item) => item.email === user.email && item.id !== id);
-        if (emailExists){
-            throw new UnprocessableEntityException("The provided email address is already in use");
-        }
-
-        const updated_at = new Date();
-
-        const updatedUser : UsersModel = {
-            ...user,
-            id,
-            updated_at,
-        };
-
-        this.users[index] = updatedUser;
-        return updatedUser;
+        user.email = data.email;
+        user.password = data.password;
+        return await user.save();
     }
 }
